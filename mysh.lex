@@ -12,7 +12,11 @@
 
 "exit" { return EXIT; }
 
-[^ \t]+ { yylval.str = yytext; return WORD; }
+";" { return SEM; }
+
+"#"[^\n]* {}
+
+[^ \t;]+ { yylval.str = yytext; return WORD; }
 
 [ \t] {}
 

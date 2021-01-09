@@ -8,8 +8,12 @@
 #include <sys/queue.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAX_CMD_LENGTH 4096
+#define MAX_PROMPT_LENGTH 256
+
 
 int yylex();
 void yyerror(char* s);
@@ -29,6 +33,8 @@ struct str_entry {
 	char* str;
 	STAILQ_ENTRY(str_entry) str_entries;
 };
+
+int return_value = 0;
 %}
 
 %union {
@@ -36,15 +42,17 @@ struct str_entry {
 }
 
 %token<str> WORD
-%token CD PWD EXIT
+%token CD PWD EXIT SEM
 
 %type<str> program
 
 %%
 
 line:
-   command
-	;	
+	%empty
+	| command 
+	| command SEM line
+	;
 
 command:
 	CD arguments { // parsing arguments
@@ -83,18 +91,45 @@ command:
 		if (get_str_list_size() > 0) {
 			warnx("exit: too many arguments");
 		}
-		_exit(0); // TODO add correct return value
+		_exit(return_value);
 	}
 	| program arguments { 
-		printf("Program: %s\nArgs: ", $1);
-		struct str_entry *item;
-		STAILQ_FOREACH(item, &str_head, str_entries) {
-			printf("%s, ", item->str);
+		pid_t pid = fork();
+		if (pid == -1) {
+			err(1, "fork");
+		} else if (pid == 0) { // child
+			size_t args_len = get_str_list_size() + 2;
+			char **args = (char**) malloc(sizeof(char*) * args_len);
+			if (args == NULL) {
+				errx(1, "Out of memory");
+			}
+			args[0] = $1;
+			args[args_len - 1] = 0;
+			char **arg = args+1;
+			
+			struct str_entry *item;
+			STAILQ_FOREACH(item, &str_head, str_entries) {
+				*arg = item->str;
+				++arg;
+			}
+
+			execvp($1, args);
+			err(1, "%s", $1);
 		}
-		printf("\n");
 
 		free($1);
 		clear_str_list();
+		
+		int status;
+		if (waitpid(pid, &status, 0) == -1) {
+			err(1, "wait");
+		}
+
+		if (WIFEXITED(status)) {
+			return_value = WEXITSTATUS(status);
+		} else if (WIFSIGNALED(status)) {
+			return_value = WTERMSIG(status) + 128;
+		}
 	}
 	;
 
@@ -179,6 +214,35 @@ static size_t get_str_list_size() {
 	return size;
 }
 
+
+
+static char* get_prompt() {
+	char* cwd = get_working_dir();
+	char* prompt = (char*) malloc(sizeof(char) * MAX_PROMPT_LENGTH);
+	char* home = getenv("HOME");
+
+	if (!home) {
+		home = "";
+	}
+
+	int at_home = strcmp(cwd, home) == 0; 
+
+	if (at_home) {
+		free(cwd);
+		cwd = "~";
+	}
+
+	if (snprintf(prompt, MAX_PROMPT_LENGTH, "mysh:%s$ ", cwd) >= MAX_PROMPT_LENGTH) {
+		warnx("Prompt length limited to %d characters.", MAX_PROMPT_LENGTH);
+	}
+
+	if (!at_home) {
+		free(cwd);
+	}
+
+	return prompt;
+}
+
 static void int_handler(int intno) {
 	if (intno == SIGINT) {
 		write(1, "\n", 1); // Move to a new line 
@@ -204,11 +268,12 @@ int main() {
 	}
 
 	while (1) {
-		char *line = readline("> ");
+		char* prompt = get_prompt();
+		char* line = readline(prompt);
+		free(prompt);
 		if (line == NULL) {
 			write(1, "\n", 1); 
-			execlp("ls", "ls", NULL); // TODO remove
-			break;
+			return return_value;
 		}
 		
 		if (strlen(line) <= MAX_CMD_LENGTH) {
