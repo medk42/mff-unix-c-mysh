@@ -1,13 +1,13 @@
-#include "defaults.h"
-#include "mysh.y.h"
-#include "helper.h"
-
-#include <stdio.h>
-#include <signal.h>
-#include <unistd.h>
-#include <readline/readline.h>
-#include <readline/history.h>
 #include <err.h>
+#include <readline/history.h>
+#include <readline/readline.h>
+#include <signal.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include "defaults.h"
+#include "helper.h"
+#include "mysh.y.h"
 
 void int_handler(int intno);
 
@@ -15,25 +15,23 @@ extern void set_input_string(const char* in);
 extern void end_lexical_scan(void);
 extern void parse_file(FILE* in);
 
-
 struct sigaction interactive_handler = { .sa_handler = int_handler, .sa_flags = SA_RESTART };
 struct sigaction ignore_handler = { .sa_handler = SIG_IGN, .sa_flags = SA_RESTART };
 
-
 void int_handler(int intno) {
 	if (intno == SIGINT) {
-		write(1, "\n", 1); // Move to a new line 
-		rl_on_new_line(); // Regenerate the prompt on a newline
-		rl_replace_line("", 0); // Clear the previous text
+		write(1, "\n", 1);	   // Move to a new line
+		rl_on_new_line();		// Regenerate the prompt on a newline
+		rl_replace_line("", 0);  // Clear the previous text
 		rl_redisplay();
 	}
 }
 
 int parse_string(const char* in) {
-  set_input_string(in);
-  int rv = yyparse();
-  end_lexical_scan();
-  return rv;
+	set_input_string(in);
+	int rv = yyparse();
+	end_lexical_scan();
+	return rv;
 }
 
 int run_interactive() {
@@ -47,10 +45,10 @@ int run_interactive() {
 		free(prompt);
 
 		if (line == NULL) {
-			write(1, "\n", 1); 
+			write(1, "\n", 1);
 			return get_return_value();
 		}
-		
+
 		if (strlen(line) <= MAX_CMD_LENGTH) {
 			parse_string(line);
 
@@ -89,7 +87,6 @@ int run_file(char* file) {
 
 	return get_return_value();
 }
-
 
 int main(int argc, char** argv) {
 	--argc;

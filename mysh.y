@@ -103,10 +103,10 @@ command:
 			set_sigint_handler(&original_handler);
 
 			size_t args_len = get_str_list_size(&str_head) + 2;
-			char **args = (char**) malloc_checked(sizeof(char*) * args_len);
+			char** args = (char**) malloc_checked(sizeof(char*) * args_len);
 			args[0] = $1;
 			args[args_len - 1] = 0;
-			char **arg = args+1;
+			char** arg = args+1;
 			
 			struct str_entry *item;
 			STAILQ_FOREACH(item, &str_head, str_entries) {
@@ -154,7 +154,7 @@ arguments:
 
 %%
 
-void yyerror(char *s) {
+void yyerror(char* s) {
 	extern char* yytext;
 	dprintf(2, "error:%ld: %s near unexpected token '%s'\n", lineno, s, yytext);
 	return_value = SYNTAX_ERROR;

@@ -1,10 +1,9 @@
 #include "helper.h"
 #include "defaults.h"
-
 #include <err.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
 
 char* get_working_dir() {
 	char* cwd = getcwd(NULL, 0);
@@ -16,7 +15,7 @@ char* get_working_dir() {
 
 int change_dir(char* new_dir) {
 	char* old_dir = get_working_dir();
-	
+
 	if (chdir(new_dir) == -1) {
 		free(old_dir);
 		warn("cd: %s", new_dir);
@@ -33,7 +32,7 @@ int change_dir(char* new_dir) {
 
 	free(old_dir);
 
-    return 0;
+	return 0;
 }
 
 char* strdup_checked(const char* str) {
@@ -54,14 +53,14 @@ void* malloc_checked(size_t count) {
 
 char* get_prompt() {
 	char* cwd = get_working_dir();
-	char* prompt = (char*) malloc_checked(sizeof(char) * MAX_PROMPT_LENGTH);
+	char* prompt = (char*)malloc_checked(sizeof(char) * MAX_PROMPT_LENGTH);
 	char* home = getenv("HOME");
 
 	if (!home) {
 		home = "";
 	}
 
-	int at_home = strcmp(cwd, home) == 0; 
+	int at_home = strcmp(cwd, home) == 0;
 
 	if (at_home) {
 		free(cwd);
@@ -79,7 +78,7 @@ char* get_prompt() {
 	return prompt;
 }
 
-void set_sigint_handler(struct sigaction *handler) {
+void set_sigint_handler(struct sigaction* handler) {
 	if (sigaction(SIGINT, handler, NULL) == -1) {
 		err(1, "Couldn't register signal handler");
 	}
