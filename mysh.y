@@ -6,6 +6,7 @@
 #include "helper.h"
 #include "defaults.h"
 #include "list.h"
+#include "parser.h"
 
 #include <stdio.h>
 #include <readline/readline.h>
@@ -23,11 +24,11 @@ extern int yylex();
 void yyerror(char* s);
 
 struct str_list_head str_head = STAILQ_HEAD_INITIALIZER(str_head);
+struct program_list_head program_head = STAILQ_HEAD_INITIALIZER(program_head);
+struct list_str_list_head list_str_head = STAILQ_HEAD_INITIALIZER(list_str_head);
 
 int return_value = 0;
 size_t lineno = 1;
-
-struct sigaction original_handler = { .sa_handler = SIG_DFL };
 %}
 
 %union {
@@ -42,8 +43,20 @@ struct sigaction original_handler = { .sa_handler = SIG_DFL };
 %%
 
 file:
-	line
-	| line NL file { ++lineno; }
+	line {
+		return_value = parse_line(&program_head, &list_str_head, return_value);
+		if (is_finished()) {
+			YYACCEPT;
+		}
+	}
+	| line NL file { 
+		++lineno;
+
+		return_value = parse_line(&program_head, &list_str_head, return_value);
+		if (is_finished()) {
+			YYACCEPT;
+		}
+	}
 	;
 
 line:
@@ -53,90 +66,12 @@ line:
 	;
 
 command:
-	CD arguments { // parsing arguments
-		size_t arg_count = get_str_list_size(&str_head);
-		return_value = 0;
-		if (arg_count == 0) {
-			char* home = getenv("HOME");
-			if (home) {
-				return_value = change_dir(home);
-			}
-		} else if (arg_count == 1) {
-			char* new_dir = STAILQ_FIRST(&str_head)->str;
-			if (strcmp("-", new_dir) == 0) {
-				char* old_dir = getenv("OLDPWD");
-				if (old_dir) {
-					printf("%s\n", old_dir);
-					return_value = change_dir(old_dir);
-				} else {
-					warnx("cd: OLDPWD not set");
-					return_value = 1;
-				}
-			} else {
-				return_value = change_dir(new_dir);
-			}
-		} else {
-			warnx("cd: too many arguments");			
-			return_value = 1;
-		}
-
-		clear_str_list(&str_head);
-	}
-	| PWD arguments { // ignoring arguments like bash
-		return_value = 0;
-		clear_str_list(&str_head);
-		char* cwd = get_working_dir();
-		printf("%s\n", cwd);
-		free(cwd);
-	}
-	| EXIT arguments {
-		if (get_str_list_size(&str_head) > 0) {
-			warnx("exit: too many arguments");
-		}
-		exit(return_value);
-	}
+	CD arguments { add_to_program_list(COMMAND_CD, 0, &program_head); }
+	| PWD arguments { add_to_program_list(COMMAND_PWD, 0, &program_head); }
+	| EXIT arguments { add_to_program_list(COMMAND_EXIT, 0, &program_head); }
 	| program arguments { 
-		pid_t pid = fork();
-		if (pid == -1) {
-			err(1, "fork");
-		} else if (pid == 0) { // child
-			set_sigint_handler(&original_handler);
-
-			size_t args_len = get_str_list_size(&str_head) + 2;
-			char** args = (char**) malloc_checked(sizeof(char*) * args_len);
-			args[0] = $1;
-			args[args_len - 1] = 0;
-			char** arg = args+1;
-			
-			struct str_entry *item;
-			STAILQ_FOREACH(item, &str_head, str_entries) {
-				*arg = item->str;
-				++arg;
-			}
-
-			execvp($1, args);
-			err(UNKNOWN_COMMAND_ERROR, "%s", $1);
-		}
-
+		add_to_program_list(COMMAND_GENERAL, $1, &program_head);
 		free($1);
-		clear_str_list(&str_head);
-		
-		int status;
-		if (waitpid(pid, &status, 0) == -1) {
-			err(1, "wait");
-		}
-
-		if (WIFEXITED(status)) {
-			return_value = WEXITSTATUS(status);
-		} else if (WIFSIGNALED(status)) {
-			return_value = WTERMSIG(status) + 128;
-			dprintf(2, "Killed by signal %d.\n", WTERMSIG(status));
-			if (WTERMSIG(status) == SIGINT) {
-				YYACCEPT;
-			}
-		} else {
-			errx(1, "Child exited through unsupported operation");
-		}
 	}
 	;
 
@@ -145,11 +80,11 @@ program:
 	;
 
 arguments:
-	%empty { clear_str_list(&str_head); }
-	| arguments WORD { add_to_str_list($2, &str_head); }
-	| arguments CD { add_to_str_list("cd", &str_head); }
-	| arguments PWD { add_to_str_list("pwd", &str_head); }
-	| arguments EXIT { add_to_str_list("exit", &str_head); }
+	%empty { auto_add_to_list_str_list(&list_str_head); }
+	| arguments WORD { add_to_last_list_str_list($2, &list_str_head); }
+	| arguments CD { add_to_last_list_str_list("cd", &list_str_head); }
+	| arguments PWD { add_to_last_list_str_list("pwd", &list_str_head); }
+	| arguments EXIT { add_to_last_list_str_list("exit", &list_str_head); }
 	;
 
 %%

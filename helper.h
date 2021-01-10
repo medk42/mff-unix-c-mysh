@@ -1,3 +1,6 @@
+#ifndef HELPER_H_
+#define HELPER_H_
+
 #include <signal.h>
 #include <stdlib.h>
 
@@ -7,3 +10,5 @@ char* strdup_checked(const char* str);
 void* malloc_checked(size_t count);
 char* get_prompt();
 void set_sigint_handler(struct sigaction* handler);
+
+#endif

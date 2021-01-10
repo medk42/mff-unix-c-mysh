@@ -3,8 +3,8 @@ all: build mysh
 build:
 	mkdir -p build
 
-mysh: build/mysh.lex.c build/mysh.y.c build/helper.c build/helper.h build/defaults.h build/list.c build/list.h build/main.c
-	gcc -Wall -Wextra -o mysh build/mysh.lex.c build/mysh.y.c build/helper.c build/list.c build/main.c -lreadline
+mysh: build/mysh.lex.c build/mysh.y.c build/helper.c build/helper.h build/defaults.h build/list.c build/list.h build/main.c build/parser.c build/parser.h
+	gcc -Wall -Wextra -o mysh build/mysh.lex.c build/mysh.y.c build/helper.c build/list.c build/main.c build/parser.c -lreadline
 
 build/mysh.lex.c: mysh.lex
 	flex -o build/mysh.lex.c mysh.lex
@@ -29,6 +29,12 @@ build/list.h: list.h
 
 build/main.c: main.c
 	cp main.c build/main.c
+
+build/parser.c: parser.c
+	cp parser.c build/parser.c
+
+build/parser.h: parser.h
+	cp parser.h build/parser.h
 
 clean: 
 	rm -rf build
