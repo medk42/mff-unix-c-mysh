@@ -9,16 +9,8 @@
 #include "parser.h"
 
 #include <stdio.h>
-#include <readline/readline.h>
-#include <readline/history.h>
-#include <signal.h>
-#include <err.h>
-#include <unistd.h>
 #include <sys/queue.h>
-#include <string.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
 extern int yylex();
 void yyerror(char* s);
