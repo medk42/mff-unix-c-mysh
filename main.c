@@ -2,6 +2,7 @@
 #include "mysh.y.h"
 #include "helper.h"
 
+#include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
 #include <readline/readline.h>
