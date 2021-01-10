@@ -47,6 +47,7 @@ size_t lineno = 1;
 
 struct sigaction interactive_handler = { .sa_handler = int_handler, .sa_flags = SA_RESTART };
 struct sigaction ignore_handler = { .sa_handler = SIG_IGN, .sa_flags = SA_RESTART };
+struct sigaction original_handler = { .sa_handler = SIG_DFL };
 %}
 
 %union {
@@ -119,6 +120,8 @@ command:
 		if (pid == -1) {
 			err(1, "fork");
 		} else if (pid == 0) { // child
+			set_sigint_handler(&original_handler);
+
 			size_t args_len = get_str_list_size() + 2;
 			char **args = (char**) malloc_checked(sizeof(char*) * args_len);
 			args[0] = $1;
@@ -139,18 +142,18 @@ command:
 		clear_str_list();
 		
 		int status;
-		set_sigint_handler(&ignore_handler);
 		if (waitpid(pid, &status, 0) == -1) {
 			err(1, "wait");
 		}
-		set_sigint_handler(&interactive_handler);
 
 		if (WIFEXITED(status)) {
 			return_value = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
 			return_value = WTERMSIG(status) + 128;
 			dprintf(2, "Killed by signal %d.\n", WTERMSIG(status));
-			YYACCEPT;
+			if (WTERMSIG(status) == SIGINT) {
+				YYACCEPT;
+			}
 		} else {
 			errx(1, "Child exited through unsupported operation");
 		}
@@ -296,12 +299,15 @@ int parse_string(const char* in) {
 }
 
 int run_interactive() {
-	set_sigint_handler(&interactive_handler);
-
 	while (1) {
 		char* prompt = get_prompt();
+
+		set_sigint_handler(&interactive_handler);
 		char* line = readline(prompt);
+		set_sigint_handler(&ignore_handler);
+
 		free(prompt);
+
 		if (line == NULL) {
 			write(1, "\n", 1); 
 			return return_value;
