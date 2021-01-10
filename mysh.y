@@ -13,6 +13,9 @@
 
 #define MAX_CMD_LENGTH 4096
 #define MAX_PROMPT_LENGTH 256
+#define SYNTAX_ERROR 254
+#define UNKNOWN_COMMAND_ERROR 127
+#define COMMAND_TOO_LONG_MESSAGE "Command is too long (longer than %d)"
 
 
 int yylex();
@@ -22,10 +25,14 @@ static char* get_working_dir();
 static void change_dir(char* new_dir);
 void set_input_string(const char* in);
 void end_lexical_scan(void);
+void parse_file(FILE* in);
 static void add_to_str_list(char* str);
 static void clear_str_list();
 static char* strdup_checked(const char* str);
+static void* malloc_checked(size_t count);
 static size_t get_str_list_size();
+static void int_handler(int intno);
+static void set_sigint_handler(struct sigaction *handler);
 
 STAILQ_HEAD(str_list_head, str_entry) str_head = STAILQ_HEAD_INITIALIZER(str_head);
 
@@ -35,6 +42,11 @@ struct str_entry {
 };
 
 int return_value = 0;
+size_t lineno = 1;
+
+
+struct sigaction interactive_handler = { .sa_handler = int_handler, .sa_flags = SA_RESTART };
+struct sigaction ignore_handler = { .sa_handler = SIG_IGN, .sa_flags = SA_RESTART };
 %}
 
 %union {
@@ -42,11 +54,16 @@ int return_value = 0;
 }
 
 %token<str> WORD
-%token CD PWD EXIT SEM
+%token CD PWD EXIT SEM NL
 
 %type<str> program
 
 %%
+
+file:
+	line
+	| line NL file { ++lineno; }
+	;
 
 line:
 	%empty
@@ -57,6 +74,7 @@ line:
 command:
 	CD arguments { // parsing arguments
 		size_t arg_count = get_str_list_size();
+		return_value = 0;
 		if (arg_count == 0) {
 			char* home = getenv("HOME");
 			if (home) {
@@ -71,17 +89,20 @@ command:
 					change_dir(old_dir);
 				} else {
 					warnx("cd: OLDPWD not set");
+					return_value = 1;
 				}
 			} else {
 				change_dir(new_dir);
 			}
 		} else {
 			warnx("cd: too many arguments");			
+			return_value = 1;
 		}
 
 		clear_str_list();
 	}
 	| PWD arguments { // ignoring arguments like bash
+		return_value = 0;
 		clear_str_list();
 		char* cwd = get_working_dir();
 		printf("%s\n", cwd);
@@ -91,7 +112,7 @@ command:
 		if (get_str_list_size() > 0) {
 			warnx("exit: too many arguments");
 		}
-		_exit(return_value);
+		exit(return_value);
 	}
 	| program arguments { 
 		pid_t pid = fork();
@@ -99,10 +120,7 @@ command:
 			err(1, "fork");
 		} else if (pid == 0) { // child
 			size_t args_len = get_str_list_size() + 2;
-			char **args = (char**) malloc(sizeof(char*) * args_len);
-			if (args == NULL) {
-				errx(1, "Out of memory");
-			}
+			char **args = (char**) malloc_checked(sizeof(char*) * args_len);
 			args[0] = $1;
 			args[args_len - 1] = 0;
 			char **arg = args+1;
@@ -114,21 +132,27 @@ command:
 			}
 
 			execvp($1, args);
-			err(1, "%s", $1);
+			err(UNKNOWN_COMMAND_ERROR, "%s", $1);
 		}
 
 		free($1);
 		clear_str_list();
 		
 		int status;
+		set_sigint_handler(&ignore_handler);
 		if (waitpid(pid, &status, 0) == -1) {
 			err(1, "wait");
 		}
+		set_sigint_handler(&interactive_handler);
 
 		if (WIFEXITED(status)) {
 			return_value = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
 			return_value = WTERMSIG(status) + 128;
+			dprintf(2, "Killed by signal %d.\n", WTERMSIG(status));
+			YYACCEPT;
+		} else {
+			errx(1, "Child exited through unsupported operation");
 		}
 	}
 	;
@@ -160,7 +184,8 @@ static void change_dir(char* new_dir) {
 	
 	if (chdir(new_dir) == -1) {
 		free(old_dir);
-		warn("cd");
+		warn("cd: %s", new_dir);
+		return_value = 1;
 		return;
 	}
 
@@ -183,11 +208,16 @@ static char* strdup_checked(const char* str) {
 	return res;
 }
 
-static void add_to_str_list(char* str) {
-	struct str_entry *elem = malloc(sizeof(struct str_entry));
-	if (elem == NULL) {
+static void* malloc_checked(size_t count) {
+	void* res = malloc(count);
+	if (res == NULL) {
 		errx(1, "Out of memory");
 	}
+	return res;
+}
+
+static void add_to_str_list(char* str) {
+	struct str_entry *elem = malloc_checked(sizeof(struct str_entry));
 	
 	elem->str = strdup_checked(str);
 
@@ -218,7 +248,7 @@ static size_t get_str_list_size() {
 
 static char* get_prompt() {
 	char* cwd = get_working_dir();
-	char* prompt = (char*) malloc(sizeof(char) * MAX_PROMPT_LENGTH);
+	char* prompt = (char*) malloc_checked(sizeof(char) * MAX_PROMPT_LENGTH);
 	char* home = getenv("HOME");
 
 	if (!home) {
@@ -252,6 +282,12 @@ static void int_handler(int intno) {
 	}
 }
 
+static void set_sigint_handler(struct sigaction *handler) {
+	if (sigaction(SIGINT, handler, NULL) == -1) {
+		err(1, "Couldn't register signal handler");
+	}
+}
+
 int parse_string(const char* in) {
   set_input_string(in);
   int rv = yyparse();
@@ -259,13 +295,8 @@ int parse_string(const char* in) {
   return rv;
 }
 
-int main() {
-	struct sigaction handler = { 0 };
-	handler.sa_handler = int_handler;
-	
-	if (sigaction(SIGINT, &handler, NULL) == -1) {
-		err(1, "Couldn't register signal handler");
-	}
+int run_interactive() {
+	set_sigint_handler(&interactive_handler);
 
 	while (1) {
 		char* prompt = get_prompt();
@@ -283,15 +314,65 @@ int main() {
 				add_history(line);
 			}
 		} else {
-			warnx("Command is too long (longer than %d)", MAX_CMD_LENGTH);
+			warnx(COMMAND_TOO_LONG_MESSAGE, MAX_CMD_LENGTH);
 		}
 		free(line);
+	}
+}
+
+int run_argument(char* command) {
+	set_sigint_handler(&ignore_handler);
+
+	if (strlen(command) <= MAX_CMD_LENGTH) {
+		parse_string(command);
+		return return_value;
+	} else {
+		warnx(COMMAND_TOO_LONG_MESSAGE, MAX_CMD_LENGTH);
 	}
 	return 0;
 }
 
+int run_file(char* file) {
+	set_sigint_handler(&ignore_handler);
+
+	FILE* in = fopen(file, "r");
+	if (in == NULL) {
+		err(1, "%s", file);
+	}
+
+	parse_file(in);
+	fclose(in);
+
+	return return_value;
+}
+
+
+int main(int argc, char** argv) {
+	--argc;
+	++argv;
+	if (argc > 0) {
+		if (strcmp(*argv, "-c") == 0) {
+			if (argc > 1) {
+				char* command = *(argv + 1);
+				return run_argument(command);
+			} else {
+				errx(2, "-c: option requires an argument");
+			}
+		} else {
+			char* file = *argv;
+			return run_file(file);
+		}
+	} else {
+		return run_interactive();
+	}
+
+	return 0;
+}
+
 void yyerror(char *s) {
-	fprintf(stderr, "error: %s\n", s);
+	extern char* yytext;
+	dprintf(2, "error:%ld: %s near unexpected token '%s'\n", lineno, s, yytext);
+	return_value = SYNTAX_ERROR;
 }
 
 

@@ -14,9 +14,11 @@
 
 ";" { return SEM; }
 
+\n { return NL; }
+
 "#"[^\n]* {}
 
-[^ \t;]+ { yylval.str = yytext; return WORD; }
+[^ \t;#\n]+ { yylval.str = yytext; return WORD; }
 
 [ \t] {}
 
@@ -28,4 +30,10 @@ void set_input_string(const char* in) {
 
 void end_lexical_scan(void) {
   yy_delete_buffer(YY_CURRENT_BUFFER);
+}
+
+void parse_file(FILE* in) {
+	yyin = in;
+	yypush_buffer_state(yy_create_buffer(yyin, YY_BUF_SIZE));
+	yyparse();
 }
