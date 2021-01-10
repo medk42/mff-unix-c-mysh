@@ -4,7 +4,7 @@ build:
 	mkdir -p build
 
 mysh: build/mysh.lex.c build/mysh.y.c
-	gcc -Wall -Wextra -lfl -o mysh build/mysh.lex.c build/mysh.y.c -lreadline
+	gcc -Wall -Wextra -o mysh build/mysh.lex.c build/mysh.y.c -lreadline
 
 build/mysh.lex.c: mysh.lex
 	flex -o build/mysh.lex.c mysh.lex

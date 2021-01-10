@@ -1,4 +1,4 @@
-%option nounput noinput
+%option nounput noinput noyywrap
 
 %{
 #include "mysh.y.h"
