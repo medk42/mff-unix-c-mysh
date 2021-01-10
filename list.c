@@ -113,6 +113,7 @@ void clear_list_str_list(struct list_str_list_head* head) {
 	while (first != NULL) {
 		second = STAILQ_NEXT(first, list_str_entries);
 		clear_str_list(first->list);
+		free(first->list);
 		free(first);
 		first = second;
 	}
