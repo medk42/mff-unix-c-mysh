@@ -24,7 +24,7 @@ size_t get_str_list_size(struct str_list_head* head);
 STAILQ_HEAD(program_list_head, program_entry);
 
 typedef enum {
-	COMMAND_CD, COMMAND_PWD, COMMAND_EXIT, COMMAND_GENERAL
+	COMMAND_CD, COMMAND_PWD, COMMAND_EXIT, COMMAND_GENERAL, END_COMMAND_PIPE
 } command_type;
 
 struct program_entry {

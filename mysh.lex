@@ -14,6 +14,8 @@
 
 ";" { return SEM; }
 
+"|" { return PIPE; }
+
 \n { return NL; }
 
 "#"[^\n]* {}

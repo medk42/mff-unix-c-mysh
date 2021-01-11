@@ -28,20 +28,20 @@ size_t lineno = 1;
 }
 
 %token<str> WORD
-%token CD PWD EXIT SEM NL
+%token CD PWD EXIT SEM NL PIPE
 
 %type<str> program
 
 %%
 
 file:
-	line {
+	line_opt {
 		return_value = parse_line(&program_head, &list_str_head, return_value);
 		if (is_finished()) {
 			YYACCEPT;
 		}
 	}
-	| line NL file { 
+	| line_opt NL file { 
 		++lineno;
 
 		return_value = parse_line(&program_head, &list_str_head, return_value);
@@ -51,10 +51,21 @@ file:
 	}
 	;
 
-line:
+line_opt:
 	%empty
-	| command 
-	| command SEM line
+	| SEM
+	| line
+	| line SEM
+	;
+
+line:
+	command_pipe { add_to_program_list(END_COMMAND_PIPE, 0, &program_head); }
+	| line SEM command_pipe { add_to_program_list(END_COMMAND_PIPE, 0, &program_head); }
+	;
+
+command_pipe:
+	command
+	| command PIPE command_pipe
 	;
 
 command:
@@ -85,6 +96,9 @@ void yyerror(char* s) {
 	extern char* yytext;
 	dprintf(2, "error:%ld: %s near unexpected token '%s'\n", lineno, s, yytext);
 	return_value = SYNTAX_ERROR;
+
+	clear_program_list(&program_head);
+    clear_list_str_list(&list_str_head);
 }
 
 int get_return_value() {

@@ -63,7 +63,7 @@ static void parse_exit(struct str_list_head* arg_head, int return_value) {
     exit(return_value);
 }
 
-static int parse_general(char* command, struct str_list_head* arg_head) {
+static pid_t parse_general(char* command, struct str_list_head* arg_head) {
     pid_t pid = fork();
     if (pid == -1) {
         err(1, "fork");
@@ -87,6 +87,43 @@ static int parse_general(char* command, struct str_list_head* arg_head) {
         err(UNKNOWN_COMMAND_ERROR, "%s", command);
     }
     
+    return pid;
+}
+
+static size_t count_commands_in_pipe(struct program_entry* command) {
+    size_t count = 0;
+
+    while (command != NULL && command->type != END_COMMAND_PIPE) {
+        command = STAILQ_NEXT(command, program_entries);
+        ++count;
+    }
+
+    return count;
+}
+
+static int* init_pipes(size_t pipe_count) {
+    int* fildes = (int*)malloc_checked(sizeof(int) * 2 * pipe_count);
+
+    int* fildes_iter = fildes;
+    for (size_t i = 0; i < pipe_count; ++i, fildes_iter += 2) {
+        if (pipe(fildes_iter) == -1) {
+            err(1, "fildes");
+        }
+    }
+
+    return fildes;
+}
+
+static void destroy_pipes(int* fildes, size_t pipe_count) {
+    for (size_t i = 0; i < 2 * pipe_count; ++i) {
+        if (close(fildes[i]) == -1)  {
+            err(1, "close");
+        }
+    }
+    free(fildes);
+}
+
+static int wait_for_child(pid_t pid) {
     int status;
     if (waitpid(pid, &status, 0) == -1) {
         err(1, "wait");
@@ -105,6 +142,18 @@ static int parse_general(char* command, struct str_list_head* arg_head) {
     }
 }
 
+static int wait_for_children(pid_t* children, size_t count) {
+    int return_value = 0;
+    for (size_t i = 0; i < count; ++i, ++children) {
+        if (*children == -1) {
+            return_value = 0;
+        } else {
+            return_value = wait_for_child(*children);
+        }
+    }
+    return return_value;
+}
+
 int parse_line(struct program_list_head* commands, struct list_str_list_head* args, int old_return_value) {
     finished = 0;
 
@@ -113,26 +162,51 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
     
     int return_value = old_return_value;
 
-    while (command != NULL && !is_finished()) {
-        switch (command->type) {
-            case COMMAND_CD:
-                return_value = parse_cd(arg->list);
-                break;
-            case COMMAND_PWD:
-                return_value = parse_pwd();
-                break;
-            case COMMAND_EXIT:
-                parse_exit(arg->list, return_value);
-                break;
-            case COMMAND_GENERAL:
-                return_value = parse_general(command->command, arg->list);
-                break;
-            default:
-                errx(1, "Unsupported command type.");
+    while (command != NULL) {
+        size_t command_count = count_commands_in_pipe(command);
+        size_t pipe_count = command_count - 1;
+        int* fildes = init_pipes(pipe_count);
+        pid_t* children = (pid_t*)malloc_checked(sizeof(pid_t) * command_count);
+
+        pid_t* act_child = children;
+        int* act_fildes = fildes;
+        for (size_t i = 0; i < command_count; ++i, ++act_child, act_fildes += 2) {
+            *act_child = -1;
+
+            if (i > 0) {
+                dup2(act_fildes[-2], 0);
+            }
+            if (i < command_count - 1) {
+                dup2(act_fildes[1], 1);
+            }
+
+            switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
+                case COMMAND_CD:
+                    return_value = parse_cd(arg->list);
+                    break;
+                case COMMAND_PWD:
+                    return_value = parse_pwd();
+                    break;
+                case COMMAND_EXIT:
+                    parse_exit(arg->list, return_value);
+                    break;
+                case COMMAND_GENERAL:
+                    *act_child = parse_general(command->command, arg->list);
+                    break;
+                default:
+                    errx(1, "Unsupported command type.");
+            }
+
+            command = STAILQ_NEXT(command, program_entries);
+            arg = STAILQ_NEXT(arg, list_str_entries);
         }
 
+        destroy_pipes(fildes, pipe_count);
+
+        return_value = wait_for_children(children, command_count);
+        free(children);
+
         command = STAILQ_NEXT(command, program_entries);
-        arg = STAILQ_NEXT(arg, list_str_entries);
     }
 
     clear_program_list(commands);
