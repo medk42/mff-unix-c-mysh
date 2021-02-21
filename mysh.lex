@@ -20,7 +20,7 @@
 
 "#"[^\n]* {}
 
-[^ \t;#\n]+ { yylval.str = yytext; return WORD; }
+[^ \t;#\n|]+ { yylval.str = yytext; return WORD; }
 
 [ \t] {}
 
