@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 int finished = 0;
 
@@ -109,6 +110,12 @@ static int* init_pipes(size_t pipe_count) {
         if (pipe(fildes_iter) == -1) {
             err(1, "fildes");
         }
+        if (fcntl(fildes_iter[0], F_SETFD, FD_CLOEXEC) == -1) {
+            err(1, "fcntl");
+        }
+        if (fcntl(fildes_iter[1], F_SETFD, FD_CLOEXEC) == -1) {
+            err(1, "fcntl");
+        }
     }
 
     return fildes;
@@ -142,7 +149,7 @@ static int wait_for_child(pid_t pid) {
     }
 }
 
-static int wait_for_children(pid_t* children, size_t count) {
+static int wait_for_children(pid_t* children, size_t count) { // TODO this would mean that cd/pwd/exit don't set error return value on incorrect parameters (very limited usefulleness, but still)
     int return_value = 0;
     for (size_t i = 0; i < count; ++i, ++children) {
         if (*children == -1) {
@@ -162,6 +169,14 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
     
     int return_value = old_return_value;
 
+    int stdin_orig, stdout_orig;
+    if ((stdin_orig = dup(0)) == -1) {
+        err(1, "dup on 0");
+    }
+    if ((stdout_orig = dup(1)) == -1) {
+        err(1, "dup on 1");
+    }
+
     while (command != NULL) {
         size_t command_count = count_commands_in_pipe(command);
         size_t pipe_count = command_count - 1;
@@ -174,27 +189,43 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
             *act_child = -1;
 
             if (i > 0) {
-                dup2(act_fildes[-2], 0);
+                if (dup2(act_fildes[-2], 0) == -1) {
+                    err(1, "dup2");
+                }
             }
             if (i < command_count - 1) {
-                dup2(act_fildes[1], 1);
+                if (dup2(act_fildes[1], 1) == -1) {
+                    err(1, "dup2");
+                }
             }
 
             switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
                 case COMMAND_CD:
-                    return_value = parse_cd(arg->list);
+                    if (command_count == 1) {
+                        return_value = parse_cd(arg->list);
+                    }
                     break;
                 case COMMAND_PWD:
                     return_value = parse_pwd();
                     break;
                 case COMMAND_EXIT:
-                    parse_exit(arg->list, return_value);
+                    if (command_count == 1) {
+                        parse_exit(arg->list, return_value);
+                    }
                     break;
                 case COMMAND_GENERAL:
                     *act_child = parse_general(command->command, arg->list);
                     break;
                 default:
                     errx(1, "Unsupported command type.");
+            }
+
+            if (dup2(stdin_orig, 0) == -1) {
+                err(1, "dup2");
+            }
+
+            if (dup2(stdout_orig, 1) == -1) {
+                err(1, "dup2");
             }
 
             command = STAILQ_NEXT(command, program_entries);
@@ -207,6 +238,13 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
         free(children);
 
         command = STAILQ_NEXT(command, program_entries);
+    }
+
+    if (close(stdin_orig) == -1) {
+        err(1, "close");
+    }
+    if (close(stdout_orig) == -1) {
+        err(1, "close");
     }
 
     clear_program_list(commands);
