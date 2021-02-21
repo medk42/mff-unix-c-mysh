@@ -19,13 +19,13 @@ int is_finished() {
     return finished;
 }
 
-static int parse_cd(struct str_list_head* arg_head) {
+static int parse_cd(struct str_list_head* arg_head, int parse_only) {
     size_t arg_count = get_str_list_size(arg_head);
     
     if (arg_count == 0) {
         char* home = getenv("HOME");
         if (home) {
-            return change_dir(home);
+            return parse_only ? 0 : change_dir(home);
         }
     } else if (arg_count == 1) {
         char* new_dir = STAILQ_FIRST(arg_head)->str;
@@ -33,13 +33,13 @@ static int parse_cd(struct str_list_head* arg_head) {
             char* old_dir = getenv("OLDPWD");
             if (old_dir) {
                 printf("%s\n", old_dir);
-                return change_dir(old_dir);
+                return parse_only ? 0 : change_dir(old_dir);
             } else {
                 warnx("cd: OLDPWD not set");
                 return 1;
             }
         } else {
-            return change_dir(new_dir);
+            return parse_only ? 0 : change_dir(new_dir);
         }
     } else {
         warnx("cd: too many arguments");			
@@ -57,11 +57,14 @@ static int parse_pwd() { // ignoring arguments like bash
         return 0;
 }
 
-static void parse_exit(struct str_list_head* arg_head, int return_value) {
+static void parse_exit(struct str_list_head* arg_head, int return_value, int parse_only) {
     if (get_str_list_size(arg_head) > 0) {
         warnx("exit: too many arguments");
     }
-    exit(return_value);
+
+    if (!parse_only) {
+        exit(return_value);
+    }
 }
 
 static pid_t parse_general(char* command, struct str_list_head* arg_head) {
@@ -149,15 +152,21 @@ static int wait_for_child(pid_t pid) {
     }
 }
 
-static int wait_for_children(pid_t* children, size_t count) { // TODO this would mean that cd/pwd/exit don't set error return value on incorrect parameters (very limited usefulleness, but still)
-    int return_value = 0;
-    for (size_t i = 0; i < count; ++i, ++children) {
-        if (*children == -1) {
-            return_value = 0;
-        } else {
-            return_value = wait_for_child(*children);
+static int wait_for_children(pid_t* children, size_t count, int return_value) {
+    if (count == 0) {
+        return return_value;
+    }
+
+    for (size_t i = 0; i < count - 1; ++i, ++children) {
+        if (*children != -1) {
+            wait_for_child(*children);
         }
     }
+
+    if (*children != -1) {
+        return_value = wait_for_child(*children);
+    }
+
     return return_value;
 }
 
@@ -201,17 +210,17 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
 
             switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
                 case COMMAND_CD:
-                    if (command_count == 1) {
-                        return_value = parse_cd(arg->list);
-                    }
+                    // last argument means parse-only meaning print error messages for incorrect arguments and set return value, 
+                    // but don't actually do the action, neither cd nor exit should do anything when using in pipes, but should
+                    // still parse errors and set return value
+                    return_value = parse_cd(arg->list, command_count != 1);
                     break;
                 case COMMAND_PWD:
                     return_value = parse_pwd();
                     break;
                 case COMMAND_EXIT:
-                    if (command_count == 1) {
-                        parse_exit(arg->list, return_value);
-                    }
+                    // see "case COMMAND_CD" for last argument
+                    parse_exit(arg->list, return_value, command_count != 1);
                     break;
                 case COMMAND_GENERAL:
                     *act_child = parse_general(command->command, arg->list);
@@ -234,7 +243,8 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
 
         destroy_pipes(fildes, pipe_count);
 
-        return_value = wait_for_children(children, command_count);
+        // passing return_value since cd/exit and such may have already set their return value in this variable and if they were the last command, we can not change it
+        return_value = wait_for_children(children, command_count, return_value);
         free(children);
 
         command = STAILQ_NEXT(command, program_entries);
