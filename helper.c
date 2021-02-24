@@ -83,3 +83,10 @@ void set_sigint_handler(struct sigaction* handler) {
 		err(1, "Couldn't register signal handler");
 	}
 }
+
+char* skip_spaces(char* str) {
+	while (*str == ' ') { // skip whitespace
+		str += 1;
+	}
+	return str;
+}

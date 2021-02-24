@@ -27,7 +27,7 @@ size_t lineno = 1;
 	char* str;
 }
 
-%token<str> WORD
+%token<str> WORD WRITE APPEND READ
 %token CD PWD EXIT SEM NL PIPE
 
 %type<str> program

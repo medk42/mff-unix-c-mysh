@@ -2,7 +2,10 @@
 
 %{
 #include "mysh.y.h"
+#include "helper.h"
 %}
+
+word	[^ \t;#\n|]+
 
 %%
 
@@ -20,7 +23,22 @@
 
 "#"[^\n]* {}
 
-[^ \t;#\n|]+ { yylval.str = yytext; return WORD; }
+"<"[ ]*{word} {
+	yylval.str = skip_spaces(yytext + 1);
+	return READ;
+}
+
+">>"[ ]*{word} {
+	yylval.str = skip_spaces(yytext + 2);
+	return APPEND;
+}
+
+">"[ ]*{word} {
+	yylval.str = skip_spaces(yytext + 1);
+	return WRITE;
+}
+
+{word} { yylval.str = yytext; return WORD; }
 
 [ \t] {}
 

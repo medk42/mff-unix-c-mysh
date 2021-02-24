@@ -10,5 +10,6 @@ char* strdup_checked(const char* str);
 void* malloc_checked(size_t count);
 char* get_prompt();
 void set_sigint_handler(struct sigaction* handler);
+char* skip_spaces(char* str);
 
 #endif
