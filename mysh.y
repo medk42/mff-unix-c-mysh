@@ -15,9 +15,9 @@
 extern int yylex();
 void yyerror(char* s);
 
-struct str_list_head str_head = STAILQ_HEAD_INITIALIZER(str_head);
-struct program_list_head program_head = STAILQ_HEAD_INITIALIZER(program_head);
-struct list_str_list_head list_str_head = STAILQ_HEAD_INITIALIZER(list_str_head);
+struct str_list___head str_head = STAILQ_HEAD_INITIALIZER(str_head);
+struct program_list___head program_head = STAILQ_HEAD_INITIALIZER(program_head);
+struct str_list_list___head list_str_head = STAILQ_HEAD_INITIALIZER(list_str_head);
 
 int return_value = 0;
 size_t lineno = 1;
@@ -59,8 +59,8 @@ line_opt:
 	;
 
 line:
-	command_pipe { add_to_program_list(END_COMMAND_PIPE, 0, &program_head); }
-	| line SEM command_pipe { add_to_program_list(END_COMMAND_PIPE, 0, &program_head); }
+	command_pipe { program_list___append(END_COMMAND_PIPE, 0, &program_head); }
+	| line SEM command_pipe { program_list___append(END_COMMAND_PIPE, 0, &program_head); }
 	;
 
 command_pipe:
@@ -69,11 +69,11 @@ command_pipe:
 	;
 
 command:
-	CD arguments { add_to_program_list(COMMAND_CD, 0, &program_head); }
-	| PWD arguments { add_to_program_list(COMMAND_PWD, 0, &program_head); }
-	| EXIT arguments { add_to_program_list(COMMAND_EXIT, 0, &program_head); }
+	CD arguments { program_list___append(COMMAND_CD, 0, &program_head); }
+	| PWD arguments { program_list___append(COMMAND_PWD, 0, &program_head); }
+	| EXIT arguments { program_list___append(COMMAND_EXIT, 0, &program_head); }
 	| program arguments { 
-		add_to_program_list(COMMAND_GENERAL, $1, &program_head);
+		program_list___append(COMMAND_GENERAL, $1, &program_head);
 		free($1);
 	}
 	;
@@ -83,11 +83,11 @@ program:
 	;
 
 arguments:
-	%empty { auto_add_to_list_str_list(&list_str_head); }
-	| arguments WORD { add_to_last_list_str_list($2, &list_str_head); }
-	| arguments CD { add_to_last_list_str_list("cd", &list_str_head); }
-	| arguments PWD { add_to_last_list_str_list("pwd", &list_str_head); }
-	| arguments EXIT { add_to_last_list_str_list("exit", &list_str_head); }
+	%empty { str_list_list___append_empty_str_list(&list_str_head); }
+	| arguments WORD { str_list_list___append_to_last($2, &list_str_head); }
+	| arguments CD { str_list_list___append_to_last("cd", &list_str_head); }
+	| arguments PWD { str_list_list___append_to_last("pwd", &list_str_head); }
+	| arguments EXIT { str_list_list___append_to_last("exit", &list_str_head); }
 	;
 
 %%
@@ -97,8 +97,8 @@ void yyerror(char* s) {
 	dprintf(2, "error:%ld: %s near unexpected token '%s'\n", lineno, s, yytext);
 	return_value = SYNTAX_ERROR;
 
-	clear_program_list(&program_head);
-    clear_list_str_list(&list_str_head);
+	program_list___clear(&program_head);
+    str_list_list___clear(&list_str_head);
 }
 
 int get_return_value() {

@@ -4,6 +4,6 @@
 #include "list.h"
 
 int is_finished();
-int parse_line(struct program_list_head* commands, struct list_str_list_head* args, int old_return_value);
+int parse_line(struct program_list___head* commands, struct str_list_list___head* args, int old_return_value);
 
 #endif

@@ -19,8 +19,8 @@ int is_finished() {
     return finished;
 }
 
-static int parse_cd(struct str_list_head* arg_head, int parse_only) {
-    size_t arg_count = get_str_list_size(arg_head);
+static int parse_cd(struct str_list___head* arg_head, int parse_only) {
+    size_t arg_count = str_list___get_size(arg_head);
     
     if (arg_count == 0) {
         char* home = getenv("HOME");
@@ -57,8 +57,8 @@ static int parse_pwd() { // ignoring arguments like bash
         return 0;
 }
 
-static void parse_exit(struct str_list_head* arg_head, int return_value, int parse_only) {
-    if (get_str_list_size(arg_head) > 0) {
+static void parse_exit(struct str_list___head* arg_head, int return_value, int parse_only) {
+    if (str_list___get_size(arg_head) > 0) {
         warnx("exit: too many arguments");
     }
 
@@ -67,7 +67,7 @@ static void parse_exit(struct str_list_head* arg_head, int return_value, int par
     }
 }
 
-static pid_t parse_general(char* command, struct str_list_head* arg_head) {
+static pid_t parse_general(char* command, struct str_list___head* arg_head) {
     pid_t pid = fork();
     if (pid == -1) {
         err(1, "fork");
@@ -75,13 +75,13 @@ static pid_t parse_general(char* command, struct str_list_head* arg_head) {
         struct sigaction original_handler = { .sa_handler = SIG_DFL };
         set_sigint_handler(&original_handler);
 
-        size_t args_len = get_str_list_size(arg_head) + 2;
+        size_t args_len = str_list___get_size(arg_head) + 2;
         char** args = (char**)malloc_checked(sizeof(char*) * args_len);
         args[0] = command;
         args[args_len - 1] = 0;
         char** arg = args+1;
         
-        struct str_entry *item;
+        struct str_list___entry *item;
         STAILQ_FOREACH(item, arg_head, str_entries) {
             *arg = item->str;
             ++arg;
@@ -94,7 +94,7 @@ static pid_t parse_general(char* command, struct str_list_head* arg_head) {
     return pid;
 }
 
-static size_t count_commands_in_pipe(struct program_entry* command) {
+static size_t count_commands_in_pipe(struct program_list___entry* command) {
     size_t count = 0;
 
     while (command != NULL && command->type != END_COMMAND_PIPE) {
@@ -177,11 +177,11 @@ static int wait_for_children(pid_t* children, size_t count, int return_value) {
     return return_value;
 }
 
-int parse_line(struct program_list_head* commands, struct list_str_list_head* args, int old_return_value) {
+int parse_line(struct program_list___head* commands, struct str_list_list___head* args, int old_return_value) {
     finished = 0;
 
-	struct program_entry* command = STAILQ_FIRST(commands);
-	struct list_str_entry* arg =  STAILQ_FIRST(args);
+	struct program_list___entry* command = STAILQ_FIRST(commands);
+	struct str_list_list___entry* arg =  STAILQ_FIRST(args);
     
     int return_value = old_return_value;
 
@@ -267,8 +267,8 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
         err(1, "close");
     }
 
-    clear_program_list(commands);
-    clear_list_str_list(args);
+    program_list___clear(commands);
+    str_list_list___clear(args);
 
     return return_value;
 }
