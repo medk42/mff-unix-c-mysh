@@ -68,7 +68,7 @@ size_t program_list___get_size(struct program_list___head* head) {
 
 
 
-static struct str_list___head* get_last_list(struct str_list_list___head* head) {
+static struct str_list___head* str_list_list___get_last(struct str_list_list___head* head) {
 	if (str_list_list___get_size(head) == 0) {
 		errx(1, "couldn't get last list");
 	}
@@ -93,7 +93,7 @@ void str_list_list___append_empty_str_list(struct str_list_list___head* head) {
 }
 
 void str_list_list___append_to_last(char* str, struct str_list_list___head* head) {
-	struct str_list___head* last = get_last_list(head);
+	struct str_list___head* last = str_list_list___get_last(head);
 
 	str_list___append(str, last);
 }
