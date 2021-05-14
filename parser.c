@@ -124,13 +124,20 @@ static int* init_pipes(size_t pipe_count) {
     return fildes;
 }
 
-static void destroy_pipes(int* fildes, size_t pipe_count) {
-    for (size_t i = 0; i < 2 * pipe_count; ++i) {
+static void pipes_close_write(int* fildes, size_t pipe_count) {
+    for (size_t i = 1; i < 2 * pipe_count; i += 2) {
         if (close(fildes[i]) == -1)  {
             err(1, "close");
         }
     }
-    free(fildes);
+}
+
+static void pipes_close_read(int* fildes, size_t pipe_count) {
+    for (size_t i = 0; i < 2 * pipe_count; i += 2) {
+        if (close(fildes[i]) == -1)  {
+            err(1, "close");
+        }
+    }
 }
 
 static int wait_for_child(pid_t pid) {
@@ -241,11 +248,14 @@ int parse_line(struct program_list_head* commands, struct list_str_list_head* ar
             arg = STAILQ_NEXT(arg, list_str_entries);
         }
 
-        destroy_pipes(fildes, pipe_count);
+        pipes_close_write(fildes, pipe_count);
 
         // passing return_value since cd/exit and such may have already set their return value in this variable and if they were the last command, we can not change it
         return_value = wait_for_children(children, command_count, return_value);
+        pipes_close_read(fildes, pipe_count);
+
         free(children);
+        free(fildes);
 
         command = STAILQ_NEXT(command, program_entries);
     }
