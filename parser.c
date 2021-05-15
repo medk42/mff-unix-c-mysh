@@ -9,6 +9,7 @@
 #include <err.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -173,6 +174,28 @@ static int wait_for_children(pid_t* children, size_t count, int return_value) {
 	return return_value;
 }
 
+void handle_redirections(struct redirection_data redirections) {
+	if (redirections.read_file) {
+		int fd = open_checked(redirections.read_file, O_RDONLY);
+		dup2_checked(fd, 0);
+		close_checked(fd);
+	}
+
+	if (redirections.write_file) {
+		int fd;
+		mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+
+		if (redirections.write_file_append) {
+			fd = open_mode_checked(redirections.write_file, O_WRONLY | O_CREAT | O_APPEND, mode);
+		} else {
+			fd = open_mode_checked(redirections.write_file, O_WRONLY | O_CREAT | O_TRUNC, mode);
+		}
+
+		dup2_checked(fd, 1);
+		close_checked(fd);
+	} 
+}
+
 int parse_line(struct program_list___head* commands, struct str_list_list___head* args, int old_return_value) {
 	finished = 0;
 
@@ -201,6 +224,8 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 			if (i < command_count - 1) {
 				dup2_checked(act_fildes[1], 1);
 			}
+
+			handle_redirections(command->redirections);
 
 			switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
 				case COMMAND_CD:

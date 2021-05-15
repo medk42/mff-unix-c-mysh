@@ -3,6 +3,9 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 char* get_working_dir();
 int change_dir(char* new_dir);
@@ -16,5 +19,7 @@ void reset_string(char** str);
 int dup2_checked(int oldfd, int newfd);
 int dup_checked(int oldfd);
 void close_checked(int fd);
+int open_checked(const char* pathname, int flags);
+int open_mode_checked(const char* pathname, int flags, mode_t mode);
 
 #endif

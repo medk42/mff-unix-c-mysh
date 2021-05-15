@@ -128,3 +128,19 @@ void close_checked(int fd) {
 		err(1, "close");
 	}
 }
+
+int open_checked(const char* pathname, int flags) {
+	int fd;
+	if ((fd = open(pathname, flags)) == -1) {
+		err(1, "open");
+	}
+	return fd;
+}
+
+int open_mode_checked(const char* pathname, int flags, mode_t mode) {
+	int fd;
+	if ((fd = open(pathname, flags, mode)) == -1) {
+		err(1, "open");
+	}
+	return fd;
+}
