@@ -106,3 +106,19 @@ void reset_string(char** str) {
 
 	*str = NULL;
 }
+
+int dup2_checked(int oldfd, int newfd) {
+	int result;
+	if ((result = dup2(oldfd, newfd)) == -1) {
+		err(1, "dup2");
+	}
+	return result;
+}
+
+int dup_checked(int oldfd) {
+	int result;
+	if ((result = dup(oldfd)) == -1) {
+		err(1, "dup");
+	}
+	return result;
+}

@@ -13,5 +13,7 @@ void set_sigint_handler(struct sigaction* handler);
 char* skip_spaces(char* str);
 void replace_string(char** str, char* new_str);
 void reset_string(char** str);
+int dup2_checked(int oldfd, int newfd);
+int dup_checked(int oldfd);
 
 #endif

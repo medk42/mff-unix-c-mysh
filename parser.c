@@ -185,13 +185,8 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 	
 	int return_value = old_return_value;
 
-	int stdin_orig, stdout_orig;
-	if ((stdin_orig = dup(0)) == -1) {
-		err(1, "dup on 0");
-	}
-	if ((stdout_orig = dup(1)) == -1) {
-		err(1, "dup on 1");
-	}
+	int stdin_orig = dup_checked(0);
+	int stdout_orig = dup_checked(1);
 
 	while (command != NULL) {
 		size_t command_count = count_commands_in_pipe(command);
@@ -205,14 +200,10 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 			*act_child = -1;
 
 			if (i > 0) {
-				if (dup2(act_fildes[-2], 0) == -1) {
-					err(1, "dup2");
-				}
+				dup2_checked(act_fildes[-2], 0);
 			}
 			if (i < command_count - 1) {
-				if (dup2(act_fildes[1], 1) == -1) {
-					err(1, "dup2");
-				}
+				dup2_checked(act_fildes[1], 1);
 			}
 
 			switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
@@ -236,13 +227,8 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 					errx(1, "Unsupported command type.");
 			}
 
-			if (dup2(stdin_orig, 0) == -1) {
-				err(1, "dup2");
-			}
-
-			if (dup2(stdout_orig, 1) == -1) {
-				err(1, "dup2");
-			}
+			dup2_checked(stdin_orig, 0);
+			dup2_checked(stdout_orig, 1);
 
 			command = STAILQ_NEXT(command, program_entries);
 			arg = STAILQ_NEXT(arg, list_str_entries);
