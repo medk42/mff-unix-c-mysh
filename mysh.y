@@ -64,15 +64,19 @@ line:
 	;
 
 command_pipe:
-	command
-	| command PIPE command_pipe
+	redirected_command
+	| redirected_command PIPE command_pipe
+	;
+
+redirected_command:
+	redirections command
 	;
 
 command:
-	CD arguments { program_list___append(COMMAND_CD, 0, &program_head); }
-	| PWD arguments { program_list___append(COMMAND_PWD, 0, &program_head); }
-	| EXIT arguments { program_list___append(COMMAND_EXIT, 0, &program_head); }
-	| program arguments { 
+	CD arguments redirections { program_list___append(COMMAND_CD, 0, &program_head); }
+	| PWD arguments redirections { program_list___append(COMMAND_PWD, 0, &program_head); }
+	| EXIT arguments redirections { program_list___append(COMMAND_EXIT, 0, &program_head); }
+	| program arguments redirections { 
 		program_list___append(COMMAND_GENERAL, $1, &program_head);
 		free($1);
 	}
@@ -84,10 +88,21 @@ program:
 
 arguments:
 	%empty { str_list_list___append_empty_str_list(&list_str_head); }
-	| arguments WORD { str_list_list___append_to_last($2, &list_str_head); }
-	| arguments CD { str_list_list___append_to_last("cd", &list_str_head); }
-	| arguments PWD { str_list_list___append_to_last("pwd", &list_str_head); }
-	| arguments EXIT { str_list_list___append_to_last("exit", &list_str_head); }
+	| arguments redirections WORD { str_list_list___append_to_last($3, &list_str_head); }
+	| arguments redirections CD { str_list_list___append_to_last("cd", &list_str_head); }
+	| arguments redirections PWD { str_list_list___append_to_last("pwd", &list_str_head); }
+	| arguments redirections EXIT { str_list_list___append_to_last("exit", &list_str_head); }
+	;
+
+redirections:
+	%empty
+	| redirections redirection
+	;
+
+redirection:
+	WRITE { warnx("write %s", $1); }
+	| READ { warnx("read %s", $1); }
+	| APPEND { warnx("append %s", $1); }
 	;
 
 %%
