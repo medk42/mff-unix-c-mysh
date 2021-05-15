@@ -122,3 +122,9 @@ int dup_checked(int oldfd) {
 	}
 	return result;
 }
+
+void close_checked(int fd) {
+    if (close(fd) == -1) {
+		err(1, "close");
+	}
+}

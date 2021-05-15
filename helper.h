@@ -15,5 +15,6 @@ void replace_string(char** str, char* new_str);
 void reset_string(char** str);
 int dup2_checked(int oldfd, int newfd);
 int dup_checked(int oldfd);
+void close_checked(int fd);
 
 #endif

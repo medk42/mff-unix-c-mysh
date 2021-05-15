@@ -126,17 +126,13 @@ static int* init_pipes(size_t pipe_count) {
 
 static void pipes_close_write(int* fildes, size_t pipe_count) {
 	for (size_t i = 1; i < 2 * pipe_count; i += 2) {
-		if (close(fildes[i]) == -1)  {
-			err(1, "close");
-		}
+		close_checked(fildes[i]);
 	}
 }
 
 static void pipes_close_read(int* fildes, size_t pipe_count) {
 	for (size_t i = 0; i < 2 * pipe_count; i += 2) {
-		if (close(fildes[i]) == -1)  {
-			err(1, "close");
-		}
+		close_checked(fildes[i]);
 	}
 }
 
@@ -245,13 +241,9 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 
 		command = STAILQ_NEXT(command, program_entries);
 	}
-
-	if (close(stdin_orig) == -1) {
-		err(1, "close");
-	}
-	if (close(stdout_orig) == -1) {
-		err(1, "close");
-	}
+	
+	close_checked(stdin_orig);
+	close_checked(stdout_orig);
 
 	program_list___clear(commands);
 	str_list_list___clear(args);
