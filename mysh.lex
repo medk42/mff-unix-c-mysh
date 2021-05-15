@@ -5,7 +5,7 @@
 #include "helper.h"
 %}
 
-word	[^ \t;#\n|]+
+word	[^ \t;#\n|<>]+
 
 %%
 
@@ -41,6 +41,8 @@ word	[^ \t;#\n|]+
 {word} { yylval.str = yytext; return WORD; }
 
 [ \t] {}
+
+. { return UNK; }
 
 %%
 

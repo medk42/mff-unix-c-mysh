@@ -30,7 +30,7 @@ size_t lineno = 1;
 }
 
 %token<str> WORD WRITE APPEND READ
-%token CD PWD EXIT SEM NL PIPE
+%token CD PWD EXIT SEM NL PIPE UNK
 
 %type<str> program
 
