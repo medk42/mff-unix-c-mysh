@@ -90,3 +90,19 @@ char* skip_spaces(char* str) {
 	}
 	return str;
 }
+
+void replace_string(char** str, char* new_str) {
+	if (*str != NULL) {
+		free(*str);
+	}
+
+	*str = strdup_checked(new_str);
+}
+
+void reset_string(char** str) {
+	if (*str != NULL) {
+		free(*str);
+	}
+
+	*str = NULL;
+}

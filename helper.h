@@ -11,5 +11,7 @@ void* malloc_checked(size_t count);
 char* get_prompt();
 void set_sigint_handler(struct sigaction* handler);
 char* skip_spaces(char* str);
+void replace_string(char** str, char* new_str);
+void reset_string(char** str);
 
 #endif

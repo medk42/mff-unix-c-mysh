@@ -21,6 +21,14 @@ size_t str_list___get_size(struct str_list___head* head);
 
 
 
+struct redirection_data {
+	char* read_file;
+	char* write_file;
+	int write_file_append;
+};
+
+
+
 STAILQ_HEAD(program_list___head, program_list___entry);
 
 typedef enum {
@@ -30,10 +38,11 @@ typedef enum {
 struct program_list___entry {
 	command_type type;
 	char* command;
+	struct redirection_data redirections;
 	STAILQ_ENTRY(program_list___entry) program_entries;
 };
 
-void program_list___append(command_type type, char* command, struct program_list___head* head);
+void program_list___append(command_type type, char* command, struct program_list___head* head, struct redirection_data redirections);
 void program_list___clear(struct program_list___head* head);
 size_t program_list___get_size(struct program_list___head* head);
 

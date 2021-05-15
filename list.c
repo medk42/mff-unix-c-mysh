@@ -32,13 +32,16 @@ size_t str_list___get_size(struct str_list___head* head) {
 
 
 
-void program_list___append(command_type type, char* command, struct program_list___head* head) {
+void program_list___append(command_type type, char* command, struct program_list___head* head, struct redirection_data redirections) {
 	struct program_list___entry* elem = (struct program_list___entry*)malloc_checked(sizeof(struct program_list___entry));
 
 	if (type == COMMAND_GENERAL) {
 		elem->command = strdup_checked(command);
 	}
 	elem->type = type;
+	elem->redirections.write_file = (redirections.write_file) ? strdup_checked(redirections.write_file) : NULL;
+	elem->redirections.read_file = (redirections.read_file) ? strdup_checked(redirections.read_file) : NULL;
+	elem->redirections.write_file_append = redirections.write_file_append;
 
 	STAILQ_INSERT_TAIL(head, elem, program_entries);
 }
@@ -50,6 +53,12 @@ void program_list___clear(struct program_list___head* head) {
 		second = STAILQ_NEXT(first, program_entries);
 		if (first->type == COMMAND_GENERAL) {
 			free(first->command);
+		}
+		if (first->redirections.write_file) {
+			free(first->redirections.write_file);
+		}
+		if (first->redirections.read_file) {
+			free(first->redirections.read_file);
 		}
 		free(first);
 		first = second;

@@ -19,6 +19,8 @@ struct str_list___head str_head = STAILQ_HEAD_INITIALIZER(str_head);
 struct program_list___head program_head = STAILQ_HEAD_INITIALIZER(program_head);
 struct str_list_list___head list_str_head = STAILQ_HEAD_INITIALIZER(list_str_head);
 
+struct redirection_data redirections = { .read_file = NULL, .write_file = NULL, .write_file_append = 0 };
+
 int return_value = 0;
 size_t lineno = 1;
 %}
@@ -59,8 +61,8 @@ line_opt:
 	;
 
 line:
-	command_pipe { program_list___append(END_COMMAND_PIPE, 0, &program_head); }
-	| line SEM command_pipe { program_list___append(END_COMMAND_PIPE, 0, &program_head); }
+	command_pipe { program_list___append(END_COMMAND_PIPE, 0, &program_head, redirections); }
+	| line SEM command_pipe { program_list___append(END_COMMAND_PIPE, 0, &program_head, redirections); }
 	;
 
 command_pipe:
@@ -69,16 +71,34 @@ command_pipe:
 	;
 
 redirected_command:
-	redirections command
+	redirection_list command
 	;
 
 command:
-	CD arguments redirections { program_list___append(COMMAND_CD, 0, &program_head); }
-	| PWD arguments redirections { program_list___append(COMMAND_PWD, 0, &program_head); }
-	| EXIT arguments redirections { program_list___append(COMMAND_EXIT, 0, &program_head); }
-	| program arguments redirections { 
-		program_list___append(COMMAND_GENERAL, $1, &program_head);
+	CD arguments redirection_list {
+		program_list___append(COMMAND_CD, 0, &program_head, redirections);
+
+		reset_string(&(redirections.write_file));
+		reset_string(&(redirections.read_file));
+	}
+	| PWD arguments redirection_list {
+		program_list___append(COMMAND_PWD, 0, &program_head, redirections);
+
+		reset_string(&(redirections.write_file));
+		reset_string(&(redirections.read_file));
+	}
+	| EXIT arguments redirection_list {
+		program_list___append(COMMAND_EXIT, 0, &program_head, redirections);
+
+		reset_string(&(redirections.write_file));
+		reset_string(&(redirections.read_file));
+	}
+	| program arguments redirection_list {
+		program_list___append(COMMAND_GENERAL, $1, &program_head, redirections);
+
 		free($1);
+		reset_string(&(redirections.write_file));
+		reset_string(&(redirections.read_file));
 	}
 	;
 
@@ -88,21 +108,27 @@ program:
 
 arguments:
 	%empty { str_list_list___append_empty_str_list(&list_str_head); }
-	| arguments redirections WORD { str_list_list___append_to_last($3, &list_str_head); }
-	| arguments redirections CD { str_list_list___append_to_last("cd", &list_str_head); }
-	| arguments redirections PWD { str_list_list___append_to_last("pwd", &list_str_head); }
-	| arguments redirections EXIT { str_list_list___append_to_last("exit", &list_str_head); }
+	| arguments redirection_list WORD { str_list_list___append_to_last($3, &list_str_head); }
+	| arguments redirection_list CD { str_list_list___append_to_last("cd", &list_str_head); }
+	| arguments redirection_list PWD { str_list_list___append_to_last("pwd", &list_str_head); }
+	| arguments redirection_list EXIT { str_list_list___append_to_last("exit", &list_str_head); }
 	;
 
-redirections:
+redirection_list:
 	%empty
-	| redirections redirection
+	| redirection_list redirection
 	;
 
 redirection:
-	WRITE { warnx("write %s", $1); }
-	| READ { warnx("read %s", $1); }
-	| APPEND { warnx("append %s", $1); }
+	WRITE {
+		replace_string(&(redirections.write_file), $1);
+		redirections.write_file_append = 0;
+	}
+	| APPEND {
+		replace_string(&(redirections.write_file), $1);
+		redirections.write_file_append = 1;
+	}
+	| READ { replace_string(&(redirections.read_file), $1); }
 	;
 
 %%
