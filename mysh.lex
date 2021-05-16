@@ -3,6 +3,8 @@
 %{
 #include "mysh.y.h"
 #include "helper.h"
+
+int lexer_error = 0;
 %}
 
 word	[^ \t;#\n|<>]+
@@ -42,7 +44,7 @@ word	[^ \t;#\n|<>]+
 
 [ \t] {}
 
-. { return UNK; }
+. { lexer_error = 1; return UNK; }
 
 %%
 
@@ -58,4 +60,12 @@ void parse_file(FILE* in) {
 	yyin = in;
 	yypush_buffer_state(yy_create_buffer(yyin, YY_BUF_SIZE));
 	yyparse();
+}
+
+int check_lexer_error() {
+	return lexer_error;
+}
+
+void reset_lexer_error() {
+	lexer_error = 0;
 }

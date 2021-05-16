@@ -269,8 +269,5 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 	close_checked(stdin_orig);
 	close_checked(stdout_orig);
 
-	program_list___clear(commands);
-	str_list_list___clear(args);
-
 	return return_value;
 }

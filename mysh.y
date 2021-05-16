@@ -13,11 +13,13 @@
 #include <stdlib.h>
 
 extern int yylex();
+extern int check_lexer_error();
+extern void reset_lexer_error();
 void yyerror(char* s);
 
 struct str_list___head str_head = STAILQ_HEAD_INITIALIZER(str_head);
 struct program_list___head program_head = STAILQ_HEAD_INITIALIZER(program_head);
-struct str_list_list___head list_str_head = STAILQ_HEAD_INITIALIZER(list_str_head);
+struct str_list_list___head args_head = STAILQ_HEAD_INITIALIZER(args_head);
 
 struct redirection_data redirections = { .read_file = NULL, .write_file = NULL, .write_file_append = 0 };
 
@@ -38,18 +40,30 @@ size_t lineno = 1;
 
 file:
 	line_opt {
-		return_value = parse_line(&program_head, &list_str_head, return_value);
-		if (is_finished()) {
-			YYACCEPT;
+		if (!check_lexer_error()) {
+			return_value = parse_line(&program_head, &args_head, return_value);
+			
+			if (is_finished()) {
+				YYACCEPT;
+			}
 		}
+
+		program_list___clear(&program_head);
+		str_list_list___clear(&args_head);
 	}
-	| line_opt NL file { 
+	| file NL line_opt { 
 		++lineno;
 
-		return_value = parse_line(&program_head, &list_str_head, return_value);
-		if (is_finished()) {
-			YYACCEPT;
+		if (!check_lexer_error()) {
+			return_value = parse_line(&program_head, &args_head, return_value);
+
+			if (is_finished()) {
+				YYACCEPT;
+			}
 		}
+
+		program_list___clear(&program_head);
+		str_list_list___clear(&args_head);
 	}
 	;
 
@@ -107,11 +121,11 @@ program:
 	;
 
 arguments:
-	%empty { str_list_list___append_empty_str_list(&list_str_head); }
-	| arguments redirection_list WORD { str_list_list___append_to_last($3, &list_str_head); }
-	| arguments redirection_list CD { str_list_list___append_to_last("cd", &list_str_head); }
-	| arguments redirection_list PWD { str_list_list___append_to_last("pwd", &list_str_head); }
-	| arguments redirection_list EXIT { str_list_list___append_to_last("exit", &list_str_head); }
+	%empty { str_list_list___append_empty_str_list(&args_head); }
+	| arguments redirection_list WORD { str_list_list___append_to_last($3, &args_head); }
+	| arguments redirection_list CD { str_list_list___append_to_last("cd", &args_head); }
+	| arguments redirection_list PWD { str_list_list___append_to_last("pwd", &args_head); }
+	| arguments redirection_list EXIT { str_list_list___append_to_last("exit", &args_head); }
 	;
 
 redirection_list:
@@ -134,12 +148,14 @@ redirection:
 %%
 
 void yyerror(char* s) {
+	reset_lexer_error();
+	
 	extern char* yytext;
 	dprintf(2, "error:%ld: %s near unexpected token '%s'\n", lineno, s, yytext);
 	return_value = SYNTAX_ERROR;
 
 	program_list___clear(&program_head);
-    str_list_list___clear(&list_str_head);
+    str_list_list___clear(&args_head);
 }
 
 int get_return_value() {
