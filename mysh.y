@@ -17,7 +17,6 @@ extern int check_lexer_error();
 extern void reset_lexer_error();
 void yyerror(char* s);
 
-struct str_list___head str_head = STAILQ_HEAD_INITIALIZER(str_head);
 struct program_list___head program_head = STAILQ_HEAD_INITIALIZER(program_head);
 struct str_list_list___head args_head = STAILQ_HEAD_INITIALIZER(args_head);
 
@@ -43,6 +42,9 @@ file:
 		if (!check_lexer_error()) {
 			return_value = parse_line(&program_head, &args_head, return_value);
 			
+			program_list___clear(&program_head);
+			str_list_list___clear(&args_head);
+
 			if (is_finished()) {
 				YYACCEPT;
 			}
@@ -56,6 +58,9 @@ file:
 
 		if (!check_lexer_error()) {
 			return_value = parse_line(&program_head, &args_head, return_value);
+
+			program_list___clear(&program_head);
+			str_list_list___clear(&args_head);
 
 			if (is_finished()) {
 				YYACCEPT;
