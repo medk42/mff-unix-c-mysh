@@ -161,9 +161,14 @@ static int wait_for_children(pid_t* children, size_t count, int return_value) {
 	return return_value;
 }
 
-static void handle_redirections(struct redirection_data redirections) {
+static int handle_redirections(struct redirection_data redirections) {
 	if (redirections.read_file) {
-		int fd = open_checked(redirections.read_file, O_RDONLY);
+		int fd = open_warn_checked(redirections.read_file, O_RDONLY);
+
+		if (fd == -1) {
+			return 0;
+		}
+
 		dup2_checked(fd, 0);
 		close_checked(fd);
 	}
@@ -173,14 +178,20 @@ static void handle_redirections(struct redirection_data redirections) {
 		mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
 		if (redirections.write_file_append) {
-			fd = open_mode_checked(redirections.write_file, O_WRONLY | O_CREAT | O_APPEND, mode);
+			fd = open_mode_warn_checked(redirections.write_file, O_WRONLY | O_CREAT | O_APPEND, mode);
 		} else {
-			fd = open_mode_checked(redirections.write_file, O_WRONLY | O_CREAT | O_TRUNC, mode);
+			fd = open_mode_warn_checked(redirections.write_file, O_WRONLY | O_CREAT | O_TRUNC, mode);
+		}
+
+		if (fd == -1) {
+			return 0;
 		}
 
 		dup2_checked(fd, 1);
 		close_checked(fd);
-	} 
+	}
+
+	return 1;
 }
 
 int parse_line(struct program_list___head* commands, struct str_list_list___head* args, int old_return_value) {
@@ -215,27 +226,27 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 				read_pipes[i] = act_pipe[0];
 			}
 
-			handle_redirections(command->redirections);
-
-			switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
-				case COMMAND_CD:
-					// last argument means parse-only meaning print error messages for incorrect arguments and set return value, 
-					// but don't actually do the action, neither cd nor exit should do anything when using in pipes, but should
-					// still parse errors and set return value
-					return_value = parse_cd(arg->list, command_count != 1);
-					break;
-				case COMMAND_PWD:
-					return_value = parse_pwd();
-					break;
-				case COMMAND_EXIT:
-					// see "case COMMAND_CD" for last argument
-					parse_exit(arg->list, return_value, command_count != 1);
-					break;
-				case COMMAND_GENERAL:
-					*act_child = parse_general(command->command, arg->list);
-					break;
-				default:
-					errx(1, "Unsupported command type.");
+			if (handle_redirections(command->redirections)) {
+				switch (command->type) { // TODO bind pipes, cd,pwd,exit only work outside of pipes, only print with pipes
+					case COMMAND_CD:
+						// last argument means parse-only meaning print error messages for incorrect arguments and set return value, 
+						// but don't actually do the action, neither cd nor exit should do anything when using in pipes, but should
+						// still parse errors and set return value
+						return_value = parse_cd(arg->list, command_count != 1);
+						break;
+					case COMMAND_PWD:
+						return_value = parse_pwd();
+						break;
+					case COMMAND_EXIT:
+						// see "case COMMAND_CD" for last argument
+						parse_exit(arg->list, return_value, command_count != 1);
+						break;
+					case COMMAND_GENERAL:
+						*act_child = parse_general(command->command, arg->list);
+						break;
+					default:
+						errx(1, "Unsupported command type.");
+				}
 			}
 
 			dup2_checked(stdin_orig, 0);

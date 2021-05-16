@@ -19,7 +19,7 @@ void reset_string(char** str);
 int dup2_checked(int oldfd, int newfd);
 int dup_checked(int oldfd);
 void close_checked(int fd);
-int open_checked(const char* pathname, int flags);
-int open_mode_checked(const char* pathname, int flags, mode_t mode);
+int open_warn_checked(const char* pathname, int flags);
+int open_mode_warn_checked(const char* pathname, int flags, mode_t mode);
 
 #endif
