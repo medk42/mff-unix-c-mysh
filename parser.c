@@ -106,34 +106,21 @@ static size_t count_commands_in_pipe(struct program_list___entry* command) {
 	return count;
 }
 
-static int* init_pipes(size_t pipe_count) {
-	int* fildes = (int*)malloc_checked(sizeof(int) * 2 * pipe_count);
-
-	int* fildes_iter = fildes;
-	for (size_t i = 0; i < pipe_count; ++i, fildes_iter += 2) {
-		if (pipe(fildes_iter) == -1) {
-			err(1, "fildes");
-		}
-		if (fcntl(fildes_iter[0], F_SETFD, FD_CLOEXEC) == -1) {
-			err(1, "fcntl");
-		}
-		if (fcntl(fildes_iter[1], F_SETFD, FD_CLOEXEC) == -1) {
-			err(1, "fcntl");
-		}
+static void create_pipe(int* fildes) {
+	if (pipe(fildes) == -1) {
+		err(1, "pipe");
 	}
-
-	return fildes;
-}
-
-static void pipes_close_write(int* fildes, size_t pipe_count) {
-	for (size_t i = 1; i < 2 * pipe_count; i += 2) {
-		close_checked(fildes[i]);
+	if (fcntl(fildes[0], F_SETFD, FD_CLOEXEC) == -1) {
+		err(1, "fcntl");
+	}
+	if (fcntl(fildes[1], F_SETFD, FD_CLOEXEC) == -1) {
+		err(1, "fcntl");
 	}
 }
 
-static void pipes_close_read(int* fildes, size_t pipe_count) {
-	for (size_t i = 0; i < 2 * pipe_count; i += 2) {
-		close_checked(fildes[i]);
+static void close_fds(int* fds, size_t count) {
+	for (size_t i = 0; i < count; i++) {
+		close_checked(fds[i]);
 	}
 }
 
@@ -174,7 +161,7 @@ static int wait_for_children(pid_t* children, size_t count, int return_value) {
 	return return_value;
 }
 
-void handle_redirections(struct redirection_data redirections) {
+static void handle_redirections(struct redirection_data redirections) {
 	if (redirections.read_file) {
 		int fd = open_checked(redirections.read_file, O_RDONLY);
 		dup2_checked(fd, 0);
@@ -210,19 +197,22 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 	while (command != NULL) {
 		size_t command_count = count_commands_in_pipe(command);
 		size_t pipe_count = command_count - 1;
-		int* fildes = init_pipes(pipe_count);
+		int* read_pipes = (int*)malloc_checked(sizeof(int) * pipe_count);
 		pid_t* children = (pid_t*)malloc_checked(sizeof(pid_t) * command_count);
 
 		pid_t* act_child = children;
-		int* act_fildes = fildes;
-		for (size_t i = 0; i < command_count; ++i, ++act_child, act_fildes += 2) {
+		int act_pipe[2];
+		for (size_t i = 0; i < command_count; ++i, ++act_child) {
 			*act_child = -1;
 
 			if (i > 0) {
-				dup2_checked(act_fildes[-2], 0);
+				dup2_checked(act_pipe[0], 0);
 			}
 			if (i < command_count - 1) {
-				dup2_checked(act_fildes[1], 1);
+				create_pipe(act_pipe);
+				dup2_checked(act_pipe[1], 1);
+				close_checked(act_pipe[1]);
+				read_pipes[i] = act_pipe[0];
 			}
 
 			handle_redirections(command->redirections);
@@ -255,14 +245,12 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 			arg = STAILQ_NEXT(arg, list_str_entries);
 		}
 
-		pipes_close_write(fildes, pipe_count);
-
 		// passing return_value since cd/exit and such may have already set their return value in this variable and if they were the last command, we can not change it
 		return_value = wait_for_children(children, command_count, return_value);
-		pipes_close_read(fildes, pipe_count);
+		close_fds(read_pipes, pipe_count);
 
 		free(children);
-		free(fildes);
+		free(read_pipes);
 
 		command = STAILQ_NEXT(command, program_entries);
 	}
