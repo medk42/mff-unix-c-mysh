@@ -20,7 +20,7 @@ int is_finished() {
 	return finished;
 }
 
-static int parse_cd(struct str_list___head* arg_head, int parse_only) {
+static int call_cd(struct str_list___head* arg_head, int parse_only) {
 	size_t arg_count = str_list___get_size(arg_head);
 	
 	if (arg_count == 0) {
@@ -50,7 +50,7 @@ static int parse_cd(struct str_list___head* arg_head, int parse_only) {
 	return 0;
 }
 
-static int parse_pwd() { // ignoring arguments like bash
+static int call_pwd() { // ignoring arguments like bash
 		char* cwd = get_working_dir();
 		printf("%s\n", cwd);
 		free(cwd);
@@ -58,7 +58,7 @@ static int parse_pwd() { // ignoring arguments like bash
 		return 0;
 }
 
-static void parse_exit(struct str_list___head* arg_head, int return_value, int parse_only) {
+static void call_exit(struct str_list___head* arg_head, int return_value, int parse_only) {
 	if (str_list___get_size(arg_head) > 0) {
 		warnx("exit: too many arguments");
 	}
@@ -68,7 +68,7 @@ static void parse_exit(struct str_list___head* arg_head, int return_value, int p
 	}
 }
 
-static pid_t parse_general(char* command, struct str_list___head* arg_head) {
+static pid_t call_general(char* command, struct str_list___head* arg_head) {
 	pid_t pid = fork();
 	if (pid == -1) {
 		err(1, "fork");
@@ -232,17 +232,17 @@ int parse_line(struct program_list___head* commands, struct str_list_list___head
 						// last argument means parse-only meaning print error messages for incorrect arguments and set return value, 
 						// but don't actually do the action, neither cd nor exit should do anything when using in pipes, but should
 						// still parse errors and set return value
-						return_value = parse_cd(arg->list, command_count != 1);
+						return_value = call_cd(arg->list, command_count != 1);
 						break;
 					case COMMAND_PWD:
-						return_value = parse_pwd();
+						return_value = call_pwd();
 						break;
 					case COMMAND_EXIT:
 						// see "case COMMAND_CD" for last argument
-						parse_exit(arg->list, return_value, command_count != 1);
+						call_exit(arg->list, return_value, command_count != 1);
 						break;
 					case COMMAND_GENERAL:
-						*act_child = parse_general(command->command, arg->list);
+						*act_child = call_general(command->command, arg->list);
 						break;
 					default:
 						errx(1, "Unsupported command type.");
